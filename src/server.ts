@@ -17,7 +17,7 @@ const resolvers = {
     insertStartup:(_: BusinessObject, {input}: {input: StartupInput}) => db.insertStartup(input),
     insertPhase:(_: BusinessObject, {input}: {input: PhaseInput}) => db.insertPhase(input),
     insertTask:(_: BusinessObject, {input}: {input: TaskInput}) => db.insertTask(input),
-    completeTask:(_: BusinessObject, {id}: BusinessObject) => db.completeTask(id)
+    toggleTaskCompletion:(_: BusinessObject, {id}: BusinessObject) => db.toggleTaskCompletion(id)
   },
   Startup: {
     phases: ({id}: BusinessObject) => db.getPhases(id)

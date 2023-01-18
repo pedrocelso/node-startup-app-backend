@@ -7,7 +7,7 @@ export interface DB {
   insertPhase: (input: PhaseInput) => Result
   getTasks: (phaseId: string) => Task[]
   insertTask: (input: TaskInput) => Result
-  completeTask: (taskId: string) => Result
+  toggleTaskCompletion: (taskId: string) => Result
 }
 
 export interface Result {

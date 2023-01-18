@@ -53,5 +53,5 @@ type Mutation {
   insertStartup(input: StartupInput!): Result
   insertPhase(input: PhaseInput!): Result
   insertTask(input: TaskInput!): Result
-  completeTask(id: ID!): Result
+  toggleTaskCompletion(id: ID!): Result
 }

@@ -184,7 +184,7 @@ describe(`.insertTask()`, () => {
   })
 })
 
-describe(`.completeTask()`, () => {
+describe(`.toggleTaskCompletion()`, () => {
   it(`Should mark task as complete`, () => {
     const db = new MemoryDB({ startups, phases, tasks })
 
@@ -192,7 +192,7 @@ describe(`.completeTask()`, () => {
     expect(dbTasks[0].isComplete).toBeFalsy()
     expect(dbTasks[1].isComplete).toBeFalsy()
 
-    const result = db.completeTask("8")
+    const result = db.toggleTaskCompletion("8")
     expect(result.success).toBeTruthy()
     expect(result.message).toEqual(`Successfully marked task '8' as complete`)
 
@@ -208,7 +208,7 @@ describe(`.completeTask()`, () => {
     let phase = db.getPhases("1")
     expect(phase[1].isComplete).toBeFalsy()
 
-    const result = db.completeTask("6")
+    const result = db.toggleTaskCompletion("6")
     expect(result.success).toBeTruthy()
     expect(result.message).toEqual(`Successfully marked task '6' as complete`)
 
@@ -219,17 +219,28 @@ describe(`.completeTask()`, () => {
   it(`Should fail if task does not exist`, () => {
     const db = new MemoryDB({ startups, phases, tasks })
 
-    const result = db.completeTask("333")
+    const result = db.toggleTaskCompletion("333")
     expect(result.success).toBeFalsy()
     expect(result.message).toEqual(`Task '333' does not exist`)
   })
 
-  it(`Should fail if task is already complete`, () => {
+  it(`Should toggle task completion to false if it was marked as complete`, () => {
     const db = new MemoryDB({ startups, phases, tasks })
 
-    const result = db.completeTask("3")
-    expect(result.success).toBeFalsy()
-    expect(result.message).toEqual(`Task '3' is already marked as complete`)
+    const result = db.toggleTaskCompletion("5")
+    expect(result.success).toBeTruthy()
+    expect(result.message).toEqual(`Successfully marked task '5' as incomplete`)
+  })
+
+  it(`Should lock next phases and incomplete current phase if task is set as incomplete`, () => {
+    const db = new MemoryDB({ startups, phases, tasks })
+
+    const result = db.toggleTaskCompletion("3")
+    expect(result.success).toBeTruthy()
+    expect(result.message).toEqual(`Successfully marked task '3' as incomplete`)
+
+    expect(db.getPhase("4")!.locked).toBeTruthy()
+    expect(db.getPhase("3")!.isComplete).toBeFalsy()
   })
 })
 

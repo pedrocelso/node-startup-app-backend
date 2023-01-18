@@ -1,5 +1,5 @@
-import { ascend, filter, find, findIndex, head, isNil, map, Ordering, pipe, prop, reject, sort } from "ramda";
-import { Phase, PhaseInput, Startup, StartupInput, Task, TaskInput } from "../schema/model.js";
+import { ascend, filter, find, findIndex, forEach, head, isNil, map, Ordering, pipe, prop, reject, sort } from "ramda";
+import { BusinessObject, Phase, PhaseInput, Startup, StartupInput, Task, TaskInput } from "../schema/model.js";
 import { DB, fail, success } from "./db.js";
 
 export interface DataLoad {
@@ -42,6 +42,22 @@ export class MemoryDB implements DB {
     this.tasks = load?.tasks ? load.tasks.map(t => ({ ...t })) : []
   }
 
+  findById<T extends BusinessObject>(id: string, list: T[]) {
+    return find(s => s.id === id, list)
+  }
+
+  getStartup(id: string) {
+    return this.findById(id, this.startups)
+  }
+
+  getPhase(id: string) {
+    return this.findById(id, this.phases)
+  }
+
+  getTask(id: string) {
+    return this.findById(id, this.tasks)
+  }
+
   getStartups() {
     return this.startups
   }
@@ -59,13 +75,13 @@ export class MemoryDB implements DB {
     return filter(p => p.startupId === startupId, this.phases)
   }
 
-  getLastPhase(startupId: string, seqNo: number): Phase {
+  getLastPhase(startupId: string, seqNo: number): Phase | undefined {
     const phases = this.getPhases(startupId)
-    return getLastPhase(seqNo, phases)!
+    return getLastPhase(seqNo, phases)
   }
 
   insertPhase(input: PhaseInput) {
-    const startupExists = find(s => s.id === input.startupId, this.startups)
+    const startupExists = this.getStartup(input.startupId)
     if (!startupExists) {
       return fail(`Cannot insert phase: startup does not exists`)
     }
@@ -76,10 +92,12 @@ export class MemoryDB implements DB {
     }
 
     const lastPhase = this.getLastPhase(input.startupId, input.seqNo)
+    const locked = lastPhase ? !lastPhase.isComplete : false
+
     const phase = {
       id:`${this.phases.length}`,
       isComplete: false,
-      locked: !lastPhase.isComplete,
+      locked,
       ...input
     }
 
@@ -93,7 +111,7 @@ export class MemoryDB implements DB {
   }
 
   insertTask(input: TaskInput) {
-    const phaseExists = find(p => p.id === input.phaseId, this.phases)
+    const phaseExists = this.getPhase(input.phaseId)
     if (!phaseExists) {
       return fail(`Cannot insert task: phase does not exists`)
     }
@@ -107,27 +125,51 @@ export class MemoryDB implements DB {
     return success(`Successfully inserted '${input.title}'`)
   }
 
-  completeTask(taskId: string) {
+  processTaskComplete(taskInput: Task) {
+    const tasks = this.getTasks(taskInput.phaseId)
+    const hasOpenTasks = !isNil(find(t => !t.isComplete, tasks))
+    if (!hasOpenTasks) {
+      // TODO possibly handle what if completePhase goes bad
+      // (more likely to happen on a real db wheer transaction rolling back is available)
+      this.completePhase(taskInput.phaseId)
+    }
+  }
+
+  processTaskIncomplete(taskInput: Task) {
+    const phase = this.getPhase(taskInput.phaseId)
+    const phaseIndex = findIndex(p => p.id === taskInput.phaseId, this.phases)
+    this.phases[phaseIndex].isComplete = false
+
+    const laterPhasesIds = pipe(
+      mapLaterPhases(phase!.seqNo),
+      reject(isNil),
+      map(prop(`id`))
+    )(this.getPhases(phase!.startupId))
+
+    forEach(id => {
+      const index = findIndex(p => p.id === id, this.phases)
+      this.phases[index].locked = true
+    }, laterPhasesIds)
+  }
+
+  toggleTaskCompletion(taskId: string) {
     const taskIndex = findIndex(t => t.id === taskId, this.tasks)
     if (taskIndex < 0) {
       return fail(`Task '${taskId}' does not exist`)
     }
 
     const task = this.tasks[taskIndex]
-    if (task.isComplete) {
-      return fail(`Task '${taskId}' is already marked as complete`)
+    const isComplete = task.isComplete
+    this.tasks[taskIndex].isComplete = !isComplete
+
+    // TODO return flag from process functions and rollback if needed
+    if (!isComplete) {
+      this.processTaskComplete(task)
+    } else {
+      this.processTaskIncomplete(task)
     }
 
-    this.tasks[taskIndex].isComplete = true
-
-    const tasks = this.getTasks(task.phaseId)
-    const hasOpenTasks = !isNil(find(t => !t.isComplete, tasks))
-    if (!hasOpenTasks) {
-      // TODO possibly handle what if completePhase goes bad (more likely to happen on a real db wheer transaction rolling back is available)
-      this.completePhase(task.phaseId)
-    }
-
-    return success(`Successfully marked task '${taskId}' as complete`)
+    return success(`Successfully marked task '${taskId}' as ${task.isComplete ? '': 'in'}complete`)
   }
 
   completePhase(phaseId: string): boolean {
