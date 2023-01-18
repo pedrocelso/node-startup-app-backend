@@ -1,0 +1,57 @@
+type Startup {
+  id: ID!
+  name: String!
+  phases: [Phase!]!
+}
+
+type Phase {
+  id: ID!
+  title: String!
+  description: String!
+  seqNo: Int!
+  isComplete: Boolean!
+  startupId: String!
+  locked: Boolean!
+  tasks: [Task!]!
+}
+
+type Task {
+  id: ID!
+  title: String!
+  description: String!
+  isComplete: Boolean!
+  phaseId: String!
+}
+
+input StartupInput {
+  name: String!
+}
+
+input PhaseInput {
+  title: String!
+  description: String
+  seqNo: Int
+  startupId: String!
+}
+
+input TaskInput {
+  title: String!
+  description: String
+  phaseId: String!
+}
+
+type Result {
+  success: Boolean!
+  message: String
+}
+
+type Query {
+  getStartups: [Startup!]!
+}
+
+type Mutation {
+  insertStartup(input: StartupInput!): Result
+  insertPhase(input: PhaseInput!): Result
+  insertTask(input: TaskInput!): Result
+  completeTask(id: ID!): Result
+}
