@@ -1,32 +1,50 @@
 import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from '@apollo/server/standalone';
+import { expressMiddleware } from '@apollo/server/express4';
+import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { readFileSync } from "fs";
 import { load } from "./db/data-load.js";
 import { MemoryDB } from "./db/memory.js";
 import { BusinessObject, PhaseInput, StartupInput, TaskInput } from "./schema/model.js";
+import express from "express";
+import http from 'http'
+import bp from 'body-parser';
+const { json } = bp
 
+const port = process.env.PORT || 4000
 const typeDefs = readFileSync('./src/schema/schema.graphql', 'utf-8')
-
 const db = new MemoryDB(load)
-
 const resolvers = {
   Query: {
     getStartups: () => db.getStartups()
   },
   Mutation: {
-    insertStartup:(_: BusinessObject, {input}: {input: StartupInput}) => db.insertStartup(input),
-    insertPhase:(_: BusinessObject, {input}: {input: PhaseInput}) => db.insertPhase(input),
-    insertTask:(_: BusinessObject, {input}: {input: TaskInput}) => db.insertTask(input),
-    toggleTaskCompletion:(_: BusinessObject, {id}: BusinessObject) => db.toggleTaskCompletion(id)
+    insertStartup: (_: BusinessObject, { input }: { input: StartupInput }) => db.insertStartup(input),
+    insertPhase: (_: BusinessObject, { input }: { input: PhaseInput }) => db.insertPhase(input),
+    insertTask: (_: BusinessObject, { input }: { input: TaskInput }) => db.insertTask(input),
+    toggleTaskCompletion: (_: BusinessObject, { id }: BusinessObject) => db.toggleTaskCompletion(id)
   },
   Startup: {
-    phases: ({id}: BusinessObject) => db.getPhases(id)
+    phases: ({ id }: BusinessObject) => db.getPhases(id)
   },
   Phase: {
-    tasks: ({id}: BusinessObject) => db.getTasks(id)
+    tasks: ({ id }: BusinessObject) => db.getTasks(id)
   }
 }
 
-const server = new ApolloServer({ typeDefs, resolvers });
-const { url } = await startStandaloneServer(server);
-console.log(`🚀 Server listening at: ${url}`);
+const app = express();
+const httpServer = http.createServer(app);
+const server = new ApolloServer({
+  typeDefs, resolvers, plugins: [ApolloServerPluginDrainHttpServer({ httpServer })]
+});
+
+server.start().then(() => {
+  app.use(
+    '/graphql',
+    json(),
+    expressMiddleware(server, {
+      context: async ({ req }) => ({ token: req.headers.token }),
+    }),
+  );
+})
+
+new Promise<void>((resolve) => httpServer.listen({ port }, resolve)).then(() => console.log(`server running on port ${port}`))

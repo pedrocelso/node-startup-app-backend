@@ -15,5 +15,5 @@ export interface Result {
   message: string
 }
 
-export const success = (message: string): Result => ({success: true, message})
-export const fail = (message: string): Result => ({success: false, message})
+export const success = (message: string): Result => ({ success: true, message })
+export const fail = (message: string): Result => ({ success: false, message })

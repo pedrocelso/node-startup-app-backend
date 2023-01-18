@@ -127,7 +127,7 @@ describe(`.insertPhase()`, () => {
     const result = db.insertPhase({ startupId: "4", seqNo: 1, description: "this phase should be locked", title: "locked-phase" })
     expect(result.success).toBeTruthy()
     expect(result.message).toEqual(`Successfully inserted 'locked-phase'`)
-    
+
     const dbPhases = db.getPhases("4")
     expect(dbPhases[1].locked).toBeTruthy()
   })
@@ -138,7 +138,7 @@ describe(`.insertPhase()`, () => {
     const result = db.insertPhase({ startupId: "3", seqNo: 1, description: "this phase shouldn´t be locked", title: "unlocked-phase" })
     expect(result.success).toBeTruthy()
     expect(result.message).toEqual(`Successfully inserted 'unlocked-phase'`)
-    
+
     const dbPhases = db.getPhases("3")
     expect(dbPhases[1].locked).toBeFalsy()
   })

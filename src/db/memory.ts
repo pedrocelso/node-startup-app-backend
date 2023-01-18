@@ -20,7 +20,7 @@ const hasNextPhase = (phase: Phase, phaseList: Phase[]) => {
   return !isNil(find(p => p.seqNo > phase.seqNo, phaseList))
 }
 
-const getSequentialPhase = (mapFn: MapperFunction<Phase>, sortFn: SortFunction<Phase>) => (seqNo: number, list: Phase[]) =>{
+const getSequentialPhase = (mapFn: MapperFunction<Phase>, sortFn: SortFunction<Phase>) => (seqNo: number, list: Phase[]) => {
   return pipe(
     mapFn(seqNo),
     reject(isNil),
@@ -95,7 +95,7 @@ export class MemoryDB implements DB {
     const locked = lastPhase ? !lastPhase.isComplete : false
 
     const phase = {
-      id:`${this.phases.length}`,
+      id: `${this.phases.length}`,
       isComplete: false,
       locked,
       ...input
@@ -169,7 +169,7 @@ export class MemoryDB implements DB {
       this.processTaskIncomplete(task)
     }
 
-    return success(`Successfully marked task '${taskId}' as ${task.isComplete ? '': 'in'}complete`)
+    return success(`Successfully marked task '${taskId}' as ${task.isComplete ? '' : 'in'}complete`)
   }
 
   completePhase(phaseId: string): boolean {
