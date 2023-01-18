@@ -242,6 +242,14 @@ describe(`.toggleTaskCompletion()`, () => {
     expect(db.getPhase("4")!.locked).toBeTruthy()
     expect(db.getPhase("3")!.isComplete).toBeFalsy()
   })
+
+  it(`Should not toggle tasks on locked phases`, () => {
+    const db = new MemoryDB({ startups, phases, tasks })
+
+    const result = db.toggleTaskCompletion("7")
+    expect(result.success).toBeFalsy()
+    expect(result.message).toEqual(`Cannot complete tasks on locked phase`)
+  })
 })
 
 describe(`.completePhase()`, () => {

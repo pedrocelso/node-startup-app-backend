@@ -159,6 +159,11 @@ export class MemoryDB implements DB {
     }
 
     const task = this.tasks[taskIndex]
+    const phase = this.getPhase(task.phaseId)
+    if (phase?.locked) {
+      return fail(`Cannot complete tasks on locked phase`)
+    }
+
     const isComplete = task.isComplete
     this.tasks[taskIndex].isComplete = !isComplete
 
