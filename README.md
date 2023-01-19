@@ -1,3 +1,4 @@
+[![pedrocelso/node-startup-app-backend](https://circleci.com/gh/pedrocelso/node-startup-app-backend.svg?style=shield)](https://app.circleci.com/pipelines/github/pedrocelso/node-startup-app-backend)
 # Startup Phases Management
 
 This project aims to provide an easy way to manage phases faced by startups, giving the possibility to assign multiple tasks to each phase.
