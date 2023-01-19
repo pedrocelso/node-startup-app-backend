@@ -1,6 +1,7 @@
-import { ascend, filter, find, findIndex, forEach, head, isNil, map, Ordering, pipe, prop, reject, sort } from "ramda";
-import { BusinessObject, Phase, PhaseInput, Startup, StartupInput, Task, TaskInput } from "../schema/model.js";
-import { DB, fail, success } from "./db.js";
+import { ascend, empty, filter, find, findIndex, forEach, head, isEmpty, isNil, length, map, Ordering, pipe, prop, reject, sort } from "ramda";
+import { BusinessObject, Phase, PhaseInput, Startup, StartupInput, Task, TaskInput } from "../../schema/model.js";
+import { DB, fail, success } from "../db.js";
+import { Storage } from './storage.js'
 
 export interface DataLoad {
   startups?: Startup[]
@@ -29,50 +30,36 @@ const getSequentialPhase = (mapFn: MapperFunction<Phase>, sortFn: SortFunction<P
   )(list)
 }
 
+export type PhaseDBInput = Omit<Phase, `id`>
+export type TaskDBInput = Omit<Task, `id`>
+
 const getLastPhase = getSequentialPhase(mapEarlierPhases, bySeqNoDesc)
 const getNextPhase = getSequentialPhase(mapLaterPhases, bySeqNoAsc)
 
 export class MemoryDB implements DB {
-  startups: Startup[]
-  phases: Phase[]
-  tasks: Task[]
+  startups: Storage<Startup, StartupInput>
+  phases: Storage<Phase, PhaseDBInput>
+  tasks: Storage<Task, TaskDBInput>
   constructor(load?: DataLoad) {
-    this.startups = load?.startups ? load.startups.map(s => ({ ...s })) : []
-    this.phases = load?.phases ? load.phases.map(p => ({ ...p })) : []
-    this.tasks = load?.tasks ? load.tasks.map(t => ({ ...t })) : []
-  }
-
-  findById<T extends BusinessObject>(id: string, list: T[]) {
-    return find(s => s.id === id, list)
-  }
-
-  getStartup(id: string) {
-    return this.findById(id, this.startups)
-  }
-
-  getPhase(id: string) {
-    return this.findById(id, this.phases)
-  }
-
-  getTask(id: string) {
-    return this.findById(id, this.tasks)
+    this.startups = new Storage<Startup, StartupInput>(load?.startups)
+    this.phases = new Storage<Phase, PhaseDBInput>(load?.phases)
+    this.tasks = new Storage<Task, TaskDBInput>(load?.tasks)
   }
 
   getStartups() {
-    return this.startups
+    return this.startups.getAll()
   }
 
-  insertStartup({ name }: StartupInput) {
-    const id = `${this.startups.length}`
-    this.startups.push({
-      id,
-      name
-    })
-    return success(`Successfully inserted '${name}'`)
+  insertStartup(input: StartupInput) {
+    const result = this.startups.insert(input)
+    if (!result) {
+      return fail(`Failed to insert '${input.name}'`)
+    }
+    return success(`Successfully inserted '${input.name}'`)
   }
 
   getPhases(startupId: string) {
-    return filter(p => p.startupId === startupId, this.phases)
+    return this.phases.where({ startupId: startupId })
   }
 
   getLastPhase(startupId: string, seqNo: number): Phase | undefined {
@@ -81,47 +68,52 @@ export class MemoryDB implements DB {
   }
 
   insertPhase(input: PhaseInput) {
-    const startupExists = this.getStartup(input.startupId)
+    const startupExists = this.startups.get(input.startupId)
     if (!startupExists) {
       return fail(`Cannot insert phase: startup does not exists`)
     }
 
-    const phaseWithSameSeq = find(p => p.seqNo === input.seqNo, this.getPhases(input.startupId))
-    if (phaseWithSameSeq) {
-      return fail(`Cannot insert phase with same seqNo as '${phaseWithSameSeq.title}'`)
+    const phaseWithSameSeq = this.phases.where({ startupId: input.startupId, seqNo: input.seqNo })
+    if (!isEmpty(phaseWithSameSeq)) {
+      return fail(`Cannot insert phase with same seqNo as '${phaseWithSameSeq[0].title}'`)
     }
 
     const lastPhase = this.getLastPhase(input.startupId, input.seqNo)
     const locked = lastPhase ? !lastPhase.isComplete : false
 
     const phase = {
-      id: `${this.phases.length}`,
       isComplete: false,
       locked,
       ...input
     }
 
-    this.phases.push(phase)
+    const result = this.phases.insert(phase)
+    if (!result) {
+      return fail(`Failed to insert '${input.title}'`)
+    }
 
     return success(`Successfully inserted '${input.title}'`)
   }
 
   getTasks(phaseId: string) {
-    return filter(t => t.phaseId === phaseId, this.tasks)
+    return this.tasks.where({ phaseId: phaseId })
   }
 
   insertTask(input: TaskInput) {
-    const phaseExists = this.getPhase(input.phaseId)
+    const phaseExists = this.phases.get(input.phaseId)
     if (!phaseExists) {
       return fail(`Cannot insert task: phase does not exists`)
     }
 
-    const id = `${this.tasks.length}`
-    this.tasks.push({
-      id,
+    const result = this.tasks.insert({
       isComplete: false,
       ...input
     })
+
+    if (!result) {
+      return fail(`Failed to insert '${input.title}'`)
+    }
+
     return success(`Successfully inserted '${input.title}'`)
   }
 
@@ -136,9 +128,8 @@ export class MemoryDB implements DB {
   }
 
   processTaskIncomplete(taskInput: Task) {
-    const phase = this.getPhase(taskInput.phaseId)
-    const phaseIndex = findIndex(p => p.id === taskInput.phaseId, this.phases)
-    this.phases[phaseIndex].isComplete = false
+    const phase = this.phases.get(taskInput.phaseId)
+    this.phases.update({ ...phase, isComplete: false })
 
     const laterPhasesIds = pipe(
       mapLaterPhases(phase!.seqNo),
@@ -147,51 +138,46 @@ export class MemoryDB implements DB {
     )(this.getPhases(phase!.startupId))
 
     forEach(id => {
-      const index = findIndex(p => p.id === id, this.phases)
-      this.phases[index].locked = true
+      const laterPhase = this.phases.get(id)
+      this.phases.update({ ...laterPhase, locked: true })
     }, laterPhasesIds)
   }
 
   toggleTaskCompletion(taskId: string) {
-    const taskIndex = findIndex(t => t.id === taskId, this.tasks)
-    if (taskIndex < 0) {
+    const task = this.tasks.get(taskId)
+    if (isNil(task)) {
       return fail(`Task '${taskId}' does not exist`)
     }
 
-    const task = this.tasks[taskIndex]
-    const phase = this.getPhase(task.phaseId)
+    const phase = this.phases.get(task.phaseId)
     if (phase?.locked) {
       return fail(`Cannot complete tasks on locked phase`)
     }
 
-    const isComplete = task.isComplete
-    this.tasks[taskIndex].isComplete = !isComplete
+    const wasComplete = task.isComplete
+    this.tasks.update({ ...task, isComplete: !wasComplete })
 
     // TODO return flag from process functions and rollback if needed
-    if (!isComplete) {
+    if (!wasComplete) {
       this.processTaskComplete(task)
     } else {
       this.processTaskIncomplete(task)
     }
 
-    return success(`Successfully marked task '${taskId}' as ${task.isComplete ? '' : 'in'}complete`)
+    return success(`Successfully marked task '${taskId}' as ${wasComplete ? 'in' : ''}complete`)
   }
 
   completePhase(phaseId: string): boolean {
-    const index = findIndex(p => p.id == phaseId, this.phases)
-
-    if (index < 0) {
+    const phase = this.phases.get(phaseId)
+    if (isNil(phase)) {
       return false
     }
-
-    const phase = this.phases[index]
-    const startupPhases = this.getPhases(phase.startupId)
+    const startupPhases = this.phases.where({ startupId: phase.startupId })
     if (hasNextPhase(phase, startupPhases)) {
       const nextPhase = getNextPhase(phase.seqNo, startupPhases)
-      const nextPhaseIndex = findIndex((p) => p.id === nextPhase!.id, this.phases)
-      this.phases[nextPhaseIndex].locked = false
+      this.phases.update({ ...nextPhase!, locked: false })
     }
-    this.phases[index].isComplete = true
+    this.phases.update({ ...phase, isComplete: true })
     return true
   }
 }

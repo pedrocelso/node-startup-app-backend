@@ -3,7 +3,7 @@ import { expressMiddleware } from '@apollo/server/express4';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { readFileSync } from "fs";
 import { load } from "./db/data-load.js";
-import { MemoryDB } from "./db/memory.js";
+import { MemoryDB } from "./db/memory/memory.js";
 import { BusinessObject, PhaseInput, StartupInput, TaskInput } from "./schema/model.js";
 import express from "express";
 import http from 'http'

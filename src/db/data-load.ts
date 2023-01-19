@@ -1,4 +1,4 @@
-import { DataLoad } from "./memory.js";
+import { DataLoad } from "./memory/memory.js";
 
 export const load: DataLoad = {
   startups: [
@@ -7,7 +7,7 @@ export const load: DataLoad = {
   phases: [
     { id: "0", startupId: "0", title: "Foundation", seqNo: 0, description: "", isComplete: true, locked: false },
     { id: "1", startupId: "0", title: "Discovery", seqNo: 1, description: "", isComplete: false, locked: false },
-    { id: "1", startupId: "0", title: "Delivery", seqNo: 2, description: "", isComplete: false, locked: true }
+    { id: "2", startupId: "0", title: "Delivery", seqNo: 2, description: "", isComplete: false, locked: true }
   ],
   tasks: [
     { id: "0", phaseId: "0", title: "Setup virtual office", description: "", isComplete: true },

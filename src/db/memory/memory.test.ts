@@ -1,4 +1,4 @@
-import { Phase, Startup, Task } from "../schema/model.js";
+import { Phase, Startup, Task } from "../../schema/model.js";
 import { MemoryDB } from "./memory.js";
 
 const startups: Startup[] = [
@@ -239,8 +239,8 @@ describe(`.toggleTaskCompletion()`, () => {
     expect(result.success).toBeTruthy()
     expect(result.message).toEqual(`Successfully marked task '3' as incomplete`)
 
-    expect(db.getPhase("4")!.locked).toBeTruthy()
-    expect(db.getPhase("3")!.isComplete).toBeFalsy()
+    expect(db.phases.get("4")!.locked).toBeTruthy()
+    expect(db.phases.get("3")!.isComplete).toBeFalsy()
   })
 
   it(`Should not toggle tasks on locked phases`, () => {
