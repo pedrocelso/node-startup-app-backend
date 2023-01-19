@@ -3,6 +3,8 @@
 
 This project aims to provide an easy way to manage phases faced by startups, giving the possibility to assign multiple tasks to each phase.
 
+Live version: https://node-startup-app.lm.r.appspot.com/graphql
+
 ## Available commands
 |Command|Description|
 |--|--|
